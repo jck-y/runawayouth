@@ -107,9 +107,9 @@ export default function RunTracker() {
       {/* Buttons */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {tracker.status === 'idle' && (
-          <button onClick={tracker.startTracking} style={primaryBtn('#22c55e')}>
-            🏃 Mulai Lari
-          </button>
+          <p style={{ fontSize: 12, color: '#888', textAlign: 'center', marginBottom: 12 }}>
+            Saat diminta izin lokasi, pilih <strong>"Allow While Using App"</strong>
+          </p>
         )}
 
         {tracker.status === 'tracking' && (

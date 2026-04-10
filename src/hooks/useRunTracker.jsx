@@ -1,138 +1,157 @@
-import { useState, useRef, useCallback } from "react";
-
-// Hitung jarak antara dua titik GPS (Haversine formula)
 function haversineDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371000; // radius bumi dalam meter
-  const φ1 = (lat1 * Math.PI) / 180;
-  const φ2 = (lat2 * Math.PI) / 180;
-  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-  const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+  const R = 6371000
+  const φ1 = (lat1 * Math.PI) / 180
+  const φ2 = (lat2 * Math.PI) / 180
+  const Δφ = ((lat2 - lat1) * Math.PI) / 180
+  const Δλ = ((lon2 - lon1) * Math.PI) / 180
   const a =
-    Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    Math.sin(Δφ / 2) ** 2 +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
-// Validasi titik GPS
 function isValidPoint(prev, curr) {
-  if (!prev) return true;
+  if (!prev) return true
 
-  const dist = haversineDistance(prev.lat, prev.lng, curr.lat, curr.lng);
-  const timeDiff = (curr.timestamp - prev.timestamp) / 1000; // detik
+  const dist = haversineDistance(prev.lat, prev.lng, curr.lat, curr.lng)
+  const timeDiffSec = (curr.timestamp - prev.timestamp) / 1000
 
-  // Skip jika akurasi buruk (> 50 meter)
-  if (curr.accuracy > 50) return false;
+  // Tolak jika akurasi buruk
+  // iOS perlu threshold lebih longgar — pakai 80m bukan 50m
+  if (curr.accuracy > 80) return false
 
-  // Skip jika titik terlalu dekat (< 5 meter) — noise GPS
-  if (dist < 5) return false;
+  // Tolak jika waktu antar titik terlalu pendek (< 1 detik)
+  // mencegah duplikat event dari iOS
+  if (timeDiffSec < 1) return false
 
-  // Skip jika kecepatan tidak masuk akal (> 15 m/s = 54 km/jam untuk lari)
-  if (timeDiff > 0 && dist / timeDiff > 15) return false;
+  // Tolak jika titik tidak bergerak sama sekali (noise GPS diam)
+  if (dist < 3) return false
 
-  return true;
+  // Hitung kecepatan dari koordinat, BUKAN dari coords.speed
+  // karena coords.speed di iOS sering null/negatif/tidak akurat
+  if (timeDiffSec > 0) {
+    const speedMs = dist / timeDiffSec
+
+    // Lebih dari 12 m/s (43 km/j) tidak wajar untuk lari
+    if (speedMs > 12) return false
+
+    // Tolak jika GPS loncat terlalu jauh dalam waktu singkat
+    // (GPS glitch — koordinat tiba-tiba jauh lalu kembali)
+    if (dist > 50 && timeDiffSec < 5) return false
+  }
+
+  return true
 }
 
 export function useRunTracker() {
-  const [status, setStatus] = useState("idle"); // idle | tracking | paused | finished
-  const [points, setPoints] = useState([]);
-  const [distanceM, setDistanceM] = useState(0);
-  const [durationSec, setDurationSec] = useState(0);
-  const [error, setError] = useState(null);
+  const [status, setStatus] = useState('idle')
+  const [points, setPoints] = useState([])
+  const [distanceM, setDistanceM] = useState(0)
+  const [durationSec, setDurationSec] = useState(0)
+  const [error, setError] = useState(null)
 
-  const watchIdRef = useRef(null);
-  const timerRef = useRef(null);
-  const startTimeRef = useRef(null);
-  const lastPointRef = useRef(null);
+  const watchIdRef = useRef(null)
+  const timerRef = useRef(null)
+  const startTimeRef = useRef(null)
+  const lastPointRef = useRef(null)
+  const totalDistRef = useRef(0) // ← pakai ref, bukan hanya state
 
   const startTracking = useCallback(() => {
     if (!navigator.geolocation) {
-      setError("GPS tidak tersedia di perangkat ini");
-      return;
+      setError('GPS tidak tersedia di perangkat ini')
+      return
     }
 
-    setStatus("tracking");
-    setPoints([]);
-    setDistanceM(0);
-    setDurationSec(0);
-    setError(null);
-    startTimeRef.current = Date.now();
-    lastPointRef.current = null;
+    setStatus('tracking')
+    setPoints([])
+    setDistanceM(0)
+    setError(null)
+    setDurationSec(0)
+    startTimeRef.current = Date.now()
+    lastPointRef.current = null
+    totalDistRef.current = 0
 
-    // Timer tiap detik
     timerRef.current = setInterval(() => {
-      setDurationSec(Math.floor((Date.now() - startTimeRef.current) / 1000));
-    }, 1000);
+      setDurationSec(Math.floor((Date.now() - startTimeRef.current) / 1000))
+    }, 1000)
 
-    // Watch GPS
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
         const newPoint = {
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
           accuracy: pos.coords.accuracy,
-          speed_ms: pos.coords.speed,
+          // Hitung speed dari koordinat, simpan untuk referensi saja
+          speed_ms: null,
           timestamp: pos.timestamp,
-        };
+        }
 
-        if (!isValidPoint(lastPointRef.current, newPoint)) return;
+        if (!isValidPoint(lastPointRef.current, newPoint)) return
 
         if (lastPointRef.current) {
           const d = haversineDistance(
-            lastPointRef.current.lat,
-            lastPointRef.current.lng,
-            newPoint.lat,
-            newPoint.lng,
-          );
-          setDistanceM((prev) => prev + d);
+            lastPointRef.current.lat, lastPointRef.current.lng,
+            newPoint.lat, newPoint.lng
+          )
+          totalDistRef.current += d
+          setDistanceM(totalDistRef.current)
         }
 
-        lastPointRef.current = newPoint;
-        setPoints((prev) => [...prev, newPoint]);
+        lastPointRef.current = newPoint
+        setPoints(prev => [...prev, newPoint])
       },
       (err) => {
-        setError("GPS error: " + err.message);
-        stopTracking();
+        // iOS kadang throw error permission saat background
+        // jangan langsung stop, coba toleransi dulu
+        if (err.code === 1) {
+          // PERMISSION_DENIED — ini baru stop
+          setError('Izin GPS ditolak. Aktifkan lokasi di Settings.')
+          stopTracking()
+        } else {
+          // POSITION_UNAVAILABLE atau TIMEOUT — cukup warning
+          setError('GPS sinyal lemah, mencoba lagi...')
+          setTimeout(() => setError(null), 3000)
+        }
       },
       {
         enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: 10000,
-      },
-    );
-  }, []);
+        maximumAge: 2000,  // ← iOS: boleh pakai cache maks 2 detik
+        timeout: 15000,    // ← lebih toleran dari 10000
+      }
+    )
+  }, [])
 
   const stopTracking = useCallback(() => {
     if (watchIdRef.current) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
-      watchIdRef.current = null;
+      navigator.geolocation.clearWatch(watchIdRef.current)
+      watchIdRef.current = null
     }
     if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
+      clearInterval(timerRef.current)
+      timerRef.current = null
     }
-    setStatus("finished");
-  }, []);
+    setStatus('finished')
+  }, [])
 
-  // Hitung kecepatan rata-rata dalam km/jam
-  const avgSpeedKmh = durationSec > 0 ? (distanceM / durationSec) * 3.6 : 0;
+  const avgSpeedKmh = durationSec > 0
+    ? (totalDistRef.current / durationSec) * 3.6
+    : 0
 
-  // Format durasi HH:MM:SS
   const formatDuration = (sec) => {
-    const h = Math.floor(sec / 3600);
-    const m = Math.floor((sec % 3600) / 60);
-    const s = sec % 60;
-    return [h, m, s].map((v) => String(v).padStart(2, "0")).join(":");
-  };
+    const h = Math.floor(sec / 3600)
+    const m = Math.floor((sec % 3600) / 60)
+    const s = sec % 60
+    return [h, m, s].map(v => String(v).padStart(2, '0')).join(':')
+  }
 
   return {
-    status,
-    points,
-    error,
+    status, points, error,
     distanceM,
-    distanceKm: (distanceM / 1000).toFixed(2),
+    distanceKm: (totalDistRef.current / 1000).toFixed(2),
     durationSec,
     durationFormatted: formatDuration(durationSec),
     avgSpeedKmh: avgSpeedKmh.toFixed(1),
     startTracking,
     stopTracking,
-  };
+  }
 }
