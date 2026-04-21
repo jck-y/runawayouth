@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
+import { useLocationPermission } from '../hooks/useLocationPermission'
+import LocationPermissionModal from '../components/LocationPermissionModal'
 
 const STATUS_STYLE = {
   submitted: { bg: '#fef3c7', color: '#92400e', label: 'Menunggu review' },
@@ -14,6 +16,19 @@ export default function StudentDashboard() {
   const navigate = useNavigate()
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(true)
+  const [showLocationModal, setShowLocationModal] = useState(false)
+  const [requesting, setRequesting] = useState(false)
+
+  const { permissionStatus, requestPermission } = useLocationPermission()
+
+  // Tampilkan modal jika izin belum diberikan dan belum pernah ditolak
+  useEffect(() => {
+    if (permissionStatus === 'prompt' || permissionStatus === 'unknown') {
+      // Delay sedikit agar dashboard muncul dulu sebelum popup
+      const timer = setTimeout(() => setShowLocationModal(true), 800)
+      return () => clearTimeout(timer)
+    }
+  }, [permissionStatus])
 
   useEffect(() => {
     async function load() {
@@ -28,12 +43,33 @@ export default function StudentDashboard() {
     if (profile) load()
   }, [profile])
 
+  const handleAllowLocation = async () => {
+    setRequesting(true)
+    const result = await requestPermission()
+    setRequesting(false)
+    setShowLocationModal(false)
+
+    if (result === 'denied') {
+      alert('Izin lokasi ditolak. Kamu bisa mengaktifkannya melalui pengaturan browser.')
+    }
+  }
+
   const totalKm = activities
     .filter(a => a.status === 'approved')
     .reduce((sum, a) => sum + a.distance_meters / 1000, 0)
 
   return (
     <div style={{ maxWidth: 480, margin: '0 auto', padding: '1.5rem', minHeight: '100vh' }}>
+
+      {/* Modal izin lokasi */}
+      {showLocationModal && (
+        <LocationPermissionModal
+          onAllow={handleAllowLocation}
+          onSkip={() => setShowLocationModal(false)}
+          loading={requesting}
+        />
+      )}
+
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
@@ -44,6 +80,28 @@ export default function StudentDashboard() {
           Keluar
         </button>
       </div>
+
+      {/* Banner jika GPS ditolak */}
+      {permissionStatus === 'denied' && (
+        <div style={{
+          background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 12,
+          padding: '0.75rem 1rem', marginBottom: 16, fontSize: 13, color: '#92400e'
+        }}>
+          ⚠️ Izin GPS ditolak. Buka <strong>Pengaturan Browser → Izin Situs</strong> untuk mengaktifkan lokasi.
+        </div>
+      )}
+
+      {/* Indikator status GPS */}
+      {permissionStatus === 'granted' && (
+        <div style={{
+          background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12,
+          padding: '0.5rem 1rem', marginBottom: 16, fontSize: 12, color: '#166534',
+          display: 'flex', alignItems: 'center', gap: 6
+        }}>
+          <span style={{ fontSize: 8, background: '#22c55e', borderRadius: '50%', display: 'inline-block', width: 8, height: 8 }} />
+          GPS siap digunakan
+        </div>
+      )}
 
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 24 }}>
@@ -57,10 +115,14 @@ export default function StudentDashboard() {
         onClick={() => navigate('/track')}
         style={{
           width: '100%', padding: '16px', borderRadius: 14,
-          background: 'linear-gradient(135deg, #2563eb, #7c3aed)',
-          color: '#fff', border: 'none', fontSize: 16, fontWeight: 700, cursor: 'pointer',
+          background: permissionStatus === 'denied'
+            ? '#94a3b8'
+            : 'linear-gradient(135deg, #2563eb, #7c3aed)',
+          color: '#fff', border: 'none', fontSize: 16, fontWeight: 700,
+          cursor: permissionStatus === 'denied' ? 'not-allowed' : 'pointer',
           marginBottom: 24
         }}
+        disabled={permissionStatus === 'denied'}
       >
         🏃 Mulai Lari Baru
       </button>
@@ -70,9 +132,7 @@ export default function StudentDashboard() {
       {loading ? <p style={{ color: '#999' }}>Memuat...</p> : (
         activities.length === 0
           ? <p style={{ color: '#999', textAlign: 'center', padding: '2rem' }}>Belum ada aktivitas</p>
-          : activities.map(act => (
-            <ActivityCard key={act.id} activity={act} />
-          ))
+          : activities.map(act => <ActivityCard key={act.id} activity={act} />)
       )}
     </div>
   )
