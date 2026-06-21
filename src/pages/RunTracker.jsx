@@ -22,7 +22,7 @@ export default function RunTracker() {
   }
 
   const handleSubmit = async () => {
-    if (tracker.distanceM < 100) {
+    if (tracker.distanceM < 0) {
       setSubmitError('Jarak minimal 100 meter')
       return
     }

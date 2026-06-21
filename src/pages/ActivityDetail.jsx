@@ -106,7 +106,7 @@ export default function ActivityDetail() {
               className="textarea mb-3"
               value={note}
               onChange={e => setNote(e.target.value)}
-              placeholder="Catatan untuk siswa (opsional)..."
+              placeholder="Notes for Student(opsional)..."
               rows={3}
             />
             <div className="flex gap-3">
