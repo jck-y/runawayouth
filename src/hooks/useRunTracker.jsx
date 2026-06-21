@@ -17,27 +17,17 @@ function isValidPoint(prev, curr) {
   const dist = haversineDistance(prev.lat, prev.lng, curr.lat, curr.lng)
   const timeDiffSec = (curr.timestamp - prev.timestamp) / 1000
 
-  // Tolak jika akurasi buruk
-  // iOS perlu threshold lebih longgar — pakai 80m bukan 50m
   if (curr.accuracy > 80) return false
 
-  // Tolak jika waktu antar titik terlalu pendek (< 1 detik)
-  // mencegah duplikat event dari iOS
   if (timeDiffSec < 1) return false
 
-  // Tolak jika titik tidak bergerak sama sekali (noise GPS diam)
   if (dist < 3) return false
 
-  // Hitung kecepatan dari koordinat, BUKAN dari coords.speed
-  // karena coords.speed di iOS sering null/negatif/tidak akurat
   if (timeDiffSec > 0) {
     const speedMs = dist / timeDiffSec
 
-    // Lebih dari 12 m/s (43 km/j) tidak wajar untuk lari
     if (speedMs > 12) return false
 
-    // Tolak jika GPS loncat terlalu jauh dalam waktu singkat
-    // (GPS glitch — koordinat tiba-tiba jauh lalu kembali)
     if (dist > 50 && timeDiffSec < 5) return false
   }
 
@@ -55,7 +45,7 @@ export function useRunTracker() {
   const timerRef = useRef(null)
   const startTimeRef = useRef(null)
   const lastPointRef = useRef(null)
-  const totalDistRef = useRef(0) // ← pakai ref, bukan hanya state
+  const totalDistRef = useRef(0)
 
   const startTracking = useCallback(() => {
     if (!navigator.geolocation) {
@@ -82,7 +72,6 @@ export function useRunTracker() {
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
           accuracy: pos.coords.accuracy,
-          // Hitung speed dari koordinat, simpan untuk referensi saja
           speed_ms: null,
           timestamp: pos.timestamp,
         }
@@ -102,22 +91,18 @@ export function useRunTracker() {
         setPoints(prev => [...prev, newPoint])
       },
       (err) => {
-        // iOS kadang throw error permission saat background
-        // jangan langsung stop, coba toleransi dulu
         if (err.code === 1) {
-          // PERMISSION_DENIED — ini baru stop
           setError('Izin GPS ditolak. Aktifkan lokasi di Settings.')
           stopTracking()
         } else {
-          // POSITION_UNAVAILABLE atau TIMEOUT — cukup warning
           setError('GPS sinyal lemah, mencoba lagi...')
           setTimeout(() => setError(null), 3000)
         }
       },
       {
         enableHighAccuracy: true,
-        maximumAge: 2000,  // ← iOS: boleh pakai cache maks 2 detik
-        timeout: 15000,    // ← lebih toleran dari 10000
+        maximumAge: 2000,
+        timeout: 15000,
       }
     )
   }, [])

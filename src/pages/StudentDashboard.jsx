@@ -4,15 +4,13 @@ import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
 import { useLocationPermission } from '../hooks/useLocationPermission'
 import LocationPermissionModal from '../components/LocationPermissionModal'
-
-const STATUS_STYLE = {
-  submitted: { bg: '#fef3c7', color: '#92400e', label: 'Menunggu review' },
-  approved:  { bg: '#d1fae5', color: '#065f46', label: 'Disetujui' },
-  rejected:  { bg: '#fee2e2', color: '#991b1b', label: 'Ditolak' },
-}
+import AppShell from '../components/layout/AppShell'
+import KpiCard from '../components/ui/KpiCard'
+import StatusBadge from '../components/ui/StatusBadge'
+import { EmptyState, LoadingState } from '../components/ui/States'
 
 export default function StudentDashboard() {
-  const { profile, signOut } = useAuth()
+  const { profile } = useAuth()
   const navigate = useNavigate()
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(true)
@@ -24,7 +22,6 @@ export default function StudentDashboard() {
   // Tampilkan modal jika izin belum diberikan dan belum pernah ditolak
   useEffect(() => {
     if (permissionStatus === 'prompt' || permissionStatus === 'unknown') {
-      // Delay sedikit agar dashboard muncul dulu sebelum popup
       const timer = setTimeout(() => setShowLocationModal(true), 800)
       return () => clearTimeout(timer)
     }
@@ -54,14 +51,28 @@ export default function StudentDashboard() {
     }
   }
 
-  const totalKm = activities
-    .filter(a => a.status === 'approved')
-    .reduce((sum, a) => sum + a.distance_meters / 1000, 0)
+  const approved = activities.filter(a => a.status === 'approved')
+  const totalKm = approved.reduce((sum, a) => sum + a.distance_meters / 1000, 0)
+  const avgPace = approved.length
+    ? approved.reduce((sum, a) => sum + a.avg_speed_kmh, 0) / approved.length
+    : 0
 
   return (
-    <div style={{ maxWidth: 480, margin: '0 auto', padding: '1.5rem', minHeight: '100vh' }}>
-
-      {/* Modal izin lokasi */}
+    <AppShell
+      role="student"
+      active="dashboard"
+      title={`Halo, ${profile?.full_name || ''}`}
+      subtitle={`Siswa · ${profile?.class_name || 'Kelas belum diset'}`}
+      actions={
+        <button
+          onClick={() => navigate('/track')}
+          disabled={permissionStatus === 'denied'}
+          className="btn btn-primary"
+        >
+          🏃 Mulai Lari Baru
+        </button>
+      }
+    >
       {showLocationModal && (
         <LocationPermissionModal
           onAllow={handleAllowLocation}
@@ -70,113 +81,66 @@ export default function StudentDashboard() {
         />
       )}
 
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 20, fontWeight: 700 }}>Halo, {profile?.full_name} 👋</h1>
-          <p style={{ fontSize: 13, color: '#666' }}>Siswa · {profile?.class_name || 'Kelas belum diset'}</p>
-        </div>
-        <button onClick={signOut} style={{ fontSize: 12, color: '#999', background: 'none', border: 'none', cursor: 'pointer' }}>
-          Keluar
-        </button>
-      </div>
-
-      {/* Banner jika GPS ditolak */}
       {permissionStatus === 'denied' && (
-        <div style={{
-          background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 12,
-          padding: '0.75rem 1rem', marginBottom: 16, fontSize: 13, color: '#92400e'
-        }}>
-          ⚠️ Izin GPS ditolak. Buka <strong>Pengaturan Browser → Izin Situs</strong> untuk mengaktifkan lokasi.
+        <div className="alert alert-warning mb-6">
+          ⚠️ <span>Izin GPS ditolak. Buka <strong>Pengaturan Browser → Izin Situs</strong> untuk mengaktifkan lokasi.</span>
         </div>
       )}
 
-      {/* Indikator status GPS */}
       {permissionStatus === 'granted' && (
-        <div style={{
-          background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12,
-          padding: '0.5rem 1rem', marginBottom: 16, fontSize: 12, color: '#166534',
-          display: 'flex', alignItems: 'center', gap: 6
-        }}>
-          <span style={{ fontSize: 8, background: '#22c55e', borderRadius: '50%', display: 'inline-block', width: 8, height: 8 }} />
-          GPS siap digunakan
+        <div className="alert alert-success mb-6">
+          <span className="live-dot" /> <span>GPS siap digunakan</span>
         </div>
       )}
 
-      {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 24 }}>
-        <StatCard label="Total km" value={totalKm.toFixed(1)} />
-        <StatCard label="Aktivitas" value={activities.length} />
-        <StatCard label="Disetujui" value={activities.filter(a => a.status === 'approved').length} />
+      <div className="kpi-grid mb-6">
+        <KpiCard icon="📏" label="Total Jarak Disetujui" value={totalKm.toFixed(1)} unit="km" />
+        <KpiCard icon="🗂️" label="Total Aktivitas" value={activities.length} />
+        <KpiCard icon="✅" label="Disetujui" value={approved.length} />
+        <KpiCard icon="⚡" label="Kecepatan Rata-rata" value={avgPace.toFixed(1)} unit="km/j" />
       </div>
 
-      {/* CTA */}
-      <button
-        onClick={() => navigate('/track')}
-        style={{
-          width: '100%', padding: '16px', borderRadius: 14,
-          background: permissionStatus === 'denied'
-            ? '#94a3b8'
-            : 'linear-gradient(135deg, #2563eb, #7c3aed)',
-          color: '#fff', border: 'none', fontSize: 16, fontWeight: 700,
-          cursor: permissionStatus === 'denied' ? 'not-allowed' : 'pointer',
-          marginBottom: 24
-        }}
-        disabled={permissionStatus === 'denied'}
-      >
-        🏃 Mulai Lari Baru
-      </button>
-
-      {/* Activity list */}
-      <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Riwayat Aktivitas</h2>
-      {loading ? <p style={{ color: '#999' }}>Memuat...</p> : (
-        activities.length === 0
-          ? <p style={{ color: '#999', textAlign: 'center', padding: '2rem' }}>Belum ada aktivitas</p>
-          : activities.map(act => <ActivityCard key={act.id} activity={act} />)
-      )}
-    </div>
+      <div className="card">
+        <div className="card-header">
+          <h2 className="text-h2">Riwayat Aktivitas</h2>
+        </div>
+        <div className="card-pad" style={{ paddingTop: 'var(--space-4)' }}>
+          {loading ? (
+            <LoadingState label="Memuat riwayat aktivitas..." />
+          ) : activities.length === 0 ? (
+            <EmptyState
+              icon="🏃"
+              title="Belum ada aktivitas"
+              description="Mulai sesi lari pertamamu dan hasilnya akan muncul di sini setelah disubmit."
+            />
+          ) : (
+            activities.map(act => <ActivityRow key={act.id} activity={act} />)
+          )}
+        </div>
+      </div>
+    </AppShell>
   )
 }
 
-function StatCard({ label, value }) {
-  return (
-    <div style={{ background: '#f5f5f0', borderRadius: 10, padding: '0.75rem', textAlign: 'center' }}>
-      <p style={{ fontSize: 20, fontWeight: 700 }}>{value}</p>
-      <p style={{ fontSize: 11, color: '#888' }}>{label}</p>
-    </div>
-  )
-}
-
-function ActivityCard({ activity: a }) {
-  const s = STATUS_STYLE[a.status]
+function ActivityRow({ activity: a }) {
   const date = new Date(a.created_at).toLocaleDateString('id-ID', {
     day: 'numeric', month: 'short', year: 'numeric'
   })
   return (
-    <div style={{
-      background: '#fff', borderRadius: 12, padding: '1rem',
-      marginBottom: 10, border: '1px solid #eee'
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+    <div className="row-card">
+      <div className="flex justify-between items-center">
         <div>
-          <p style={{ fontWeight: 600, marginBottom: 2 }}>
-            {(a.distance_meters / 1000).toFixed(2)} km
-          </p>
-          <p style={{ fontSize: 12, color: '#888' }}>{date}</p>
+          <p className="text-h3" style={{ marginBottom: 2 }}>{(a.distance_meters / 1000).toFixed(2)} km</p>
+          <p className="text-small">{date}</p>
         </div>
-        <span style={{
-          fontSize: 11, padding: '3px 8px', borderRadius: 20,
-          background: s.bg, color: s.color, fontWeight: 600
-        }}>
-          {s.label}
-        </span>
+        <StatusBadge status={a.status} />
       </div>
-      <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 12, color: '#666' }}>
+      <div className="flex gap-4 mt-3 text-small">
         <span>⏱ {formatDuration(a.duration_seconds)}</span>
         <span>💨 {a.avg_speed_kmh.toFixed(1)} km/j</span>
       </div>
       {a.teacher_note && (
-        <p style={{ fontSize: 12, marginTop: 8, color: '#666', borderTop: '1px solid #f0f0f0', paddingTop: 8 }}>
+        <p className="text-small mt-3" style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
           💬 Catatan guru: {a.teacher_note}
         </p>
       )}

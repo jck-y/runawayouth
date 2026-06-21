@@ -14,7 +14,6 @@ export function AuthProvider({ children }) {
     isMounted.current = true
 
     async function init() {
-      // 1. Ambil session yang sudah ada
       const { data: { session } } = await supabase.auth.getSession()
 
       if (!isMounted.current) return
@@ -26,12 +25,10 @@ export function AuthProvider({ children }) {
         setLoading(false)
       }
 
-      // 2. Baru pasang listener setelah init selesai
       const { data: { subscription } } = supabase.auth.onAuthStateChange(
         async (event, session) => {
           if (!isMounted.current) return
 
-          // Ignore event background — hanya yang perlu direspons
           if (event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') return
 
           if (event === 'SIGNED_IN' && session?.user) {
@@ -49,11 +46,9 @@ export function AuthProvider({ children }) {
         }
       )
 
-      // Kembalikan fungsi cleanup dari subscription
       return () => subscription.unsubscribe()
     }
 
-    // Simpan cleanup yang dikembalikan init()
     let cleanup
     init().then(fn => { cleanup = fn })
 

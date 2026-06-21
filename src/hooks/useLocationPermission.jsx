@@ -2,16 +2,14 @@ import { useState, useEffect } from 'react'
 
 export function useLocationPermission() {
   const [permissionStatus, setPermissionStatus] = useState('unknown')
-  // 'unknown' | 'granted' | 'denied' | 'requesting'
 
   useEffect(() => {
-    // Cek status izin yang sudah ada (tanpa meminta)
     if (!navigator.permissions) {
       setPermissionStatus('unknown')
       return
     }
     navigator.permissions.query({ name: 'geolocation' }).then(result => {
-      setPermissionStatus(result.state) // 'granted' | 'denied' | 'prompt'
+      setPermissionStatus(result.state)
       result.onchange = () => setPermissionStatus(result.state)
     })
   }, [])
@@ -29,7 +27,7 @@ export function useLocationPermission() {
             setPermissionStatus('denied')
             resolve('denied')
           } else {
-            setPermissionStatus('granted') // timeout/unavailable bukan berarti denied
+            setPermissionStatus('granted')
             resolve('granted')
           }
         },

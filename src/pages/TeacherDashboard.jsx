@@ -2,20 +2,23 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
+import AppShell from '../components/layout/AppShell'
+import KpiCard from '../components/ui/KpiCard'
+import StatusBadge from '../components/ui/StatusBadge'
+import { EmptyState, LoadingState } from '../components/ui/States'
 
 const STATUS_FILTER = ['all', 'submitted', 'approved', 'rejected']
+const FILTER_LABEL = { all: 'Semua', submitted: 'Pending', approved: 'Disetujui', rejected: 'Ditolak' }
 
 export default function TeacherDashboard() {
-  const { profile, signOut } = useAuth()
+  const { profile } = useAuth()
   const navigate = useNavigate()
   const [activities, setActivities] = useState([])
   const [filter, setFilter] = useState('all')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/immutability
     loadActivities()
-    // Realtime subscription
     const sub = supabase
       .channel('activities')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'activities' }, loadActivities)
@@ -46,85 +49,80 @@ export default function TeacherDashboard() {
     rejected: activities.filter(a => a.status === 'rejected').length,
   }
 
+  const totalKmApproved = activities
+    .filter(a => a.status === 'approved')
+    .reduce((sum, a) => sum + a.distance_meters / 1000, 0)
+
   return (
-    <div style={{ maxWidth: 600, margin: '0 auto', padding: '1.5rem', minHeight: '100vh' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 20, fontWeight: 700 }}>Dashboard Guru</h1>
-          <p style={{ fontSize: 13, color: '#666' }}>{profile?.full_name}</p>
-        </div>
-        <button onClick={signOut} style={{ fontSize: 12, color: '#999', background: 'none', border: 'none', cursor: 'pointer' }}>
-          Keluar
-        </button>
+    <AppShell
+      role="teacher"
+      active="overview"
+      title="Ringkasan Aktivitas"
+      subtitle={profile?.full_name}
+    >
+      <div className="kpi-grid mb-6">
+        <KpiCard icon="🗂️" label="Total Aktivitas" value={counts.all} />
+        <KpiCard icon="⏳" label="Menunggu Review" value={counts.submitted} />
+        <KpiCard icon="✅" label="Disetujui" value={counts.approved} />
+        <KpiCard icon="📏" label="Total Km Disetujui" value={totalKmApproved.toFixed(1)} unit="km" />
       </div>
 
-      {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 20 }}>
+      <div className="filter-tabs mb-6">
         {STATUS_FILTER.map(s => (
           <button
             key={s}
             onClick={() => setFilter(s)}
-            style={{
-              padding: '10px 6px', borderRadius: 10, border: 'none', cursor: 'pointer',
-              background: filter === s ? '#2563eb' : '#f5f5f0',
-              color: filter === s ? '#fff' : '#333',
-              fontWeight: 600, fontSize: 12
-            }}
+            className={`filter-tab ${filter === s ? 'active' : ''}`}
           >
-            <div style={{ fontSize: 18 }}>{counts[s]}</div>
-            <div style={{ fontSize: 10, opacity: 0.8, textTransform: 'capitalize' }}>
-              {s === 'all' ? 'Semua' : s === 'submitted' ? 'Pending' : s === 'approved' ? 'Acc' : 'Tolak'}
-            </div>
+            <div className="count">{counts[s]}</div>
+            <div className="label">{FILTER_LABEL[s]}</div>
           </button>
         ))}
       </div>
 
-      {/* List */}
-      {loading ? <p style={{ color: '#999' }}>Memuat...</p> : (
-        filtered.length === 0
-          ? <p style={{ color: '#999', textAlign: 'center', padding: '2rem' }}>Tidak ada data</p>
-          : filtered.map(act => (
-            <div
-              key={act.id}
-              onClick={() => navigate(`/activity/${act.id}`)}
-              style={{
-                background: '#fff', borderRadius: 12, padding: '1rem',
-                marginBottom: 10, border: '1px solid #eee', cursor: 'pointer',
-                transition: 'box-shadow 0.2s',
-              }}
-              onMouseEnter={e => e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.1)'}
-              onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <div>
-                  <p style={{ fontWeight: 600 }}>{act.profiles?.full_name}</p>
-                  <p style={{ fontSize: 12, color: '#888' }}>{act.profiles?.class_name}</p>
-                </div>
-                <StatusBadge status={act.status} />
-              </div>
-              <div style={{ display: 'flex', gap: 16, fontSize: 12, color: '#666' }}>
-                <span>📏 {(act.distance_meters / 1000).toFixed(2)} km</span>
-                <span>⏱ {Math.floor(act.duration_seconds / 60)}m</span>
-                <span>💨 {act.avg_speed_kmh.toFixed(1)} km/j</span>
-              </div>
-            </div>
-          ))
-      )}
-    </div>
-  )
-}
+      <div className="card">
+        <div className="card-header">
+          <h2 className="text-h2">Daftar Aktivitas</h2>
+          <span className="text-small">{filtered.length} entri</span>
+        </div>
 
-function StatusBadge({ status }) {
-  const map = {
-    submitted: { bg: '#fef3c7', color: '#92400e', label: 'Pending' },
-    approved:  { bg: '#d1fae5', color: '#065f46', label: 'Disetujui' },
-    rejected:  { bg: '#fee2e2', color: '#991b1b', label: 'Ditolak' },
-  }
-  const s = map[status]
-  return (
-    <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, background: s.bg, color: s.color, fontWeight: 600 }}>
-      {s.label}
-    </span>
+        {loading ? (
+          <LoadingState label="Memuat data aktivitas..." />
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            icon="📭"
+            title="Tidak ada data"
+            description="Belum ada aktivitas pada kategori filter ini."
+          />
+        ) : (
+          <div className="table-wrapper">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Siswa</th>
+                  <th>Kelas</th>
+                  <th>Jarak</th>
+                  <th>Durasi</th>
+                  <th>Kecepatan</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(act => (
+                  <tr key={act.id} onClick={() => navigate(`/activity/${act.id}`)}>
+                    <td className="cell-name">{act.profiles?.full_name}</td>
+                    <td className="cell-secondary">{act.profiles?.class_name || '—'}</td>
+                    <td>{(act.distance_meters / 1000).toFixed(2)} km</td>
+                    <td className="cell-secondary">{Math.floor(act.duration_seconds / 60)}m</td>
+                    <td className="cell-secondary">{act.avg_speed_kmh.toFixed(1)} km/j</td>
+                    <td><StatusBadge status={act.status} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </AppShell>
   )
 }
