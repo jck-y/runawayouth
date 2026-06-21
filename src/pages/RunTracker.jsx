@@ -10,6 +10,16 @@ export default function RunTracker() {
   const tracker = useRunTracker()
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const [photoFile, setPhotoFile] = useState(null)
+  const [photoPreview, setPhotoPreview] = useState(null)
+
+  const handlePhotoChange = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setPhotoFile(file)
+    setPhotoPreview(URL.createObjectURL(file))
+    setSubmitError('')
+  }
 
   const handleSubmit = async () => {
     if (tracker.distanceM < 100) {
@@ -17,10 +27,34 @@ export default function RunTracker() {
       return
     }
 
+    if (!photoFile) {
+      setSubmitError('Foto bukti lari wajib diambil sebelum submit')
+      return
+    }
+
     setSubmitting(true)
     setSubmitError('')
 
     try {
+      // 1. Upload foto bukti ke Supabase Storage
+      const fileExt = photoFile.name.split('.').pop() || 'jpg'
+      const filePath = `${profile.id}/${Date.now()}.${fileExt}`
+
+      const { error: uploadErr } = await supabase
+        .storage
+        .from('activity-photos')
+        .upload(filePath, photoFile, { contentType: photoFile.type })
+
+      if (uploadErr) throw uploadErr
+
+      const { data: publicUrlData } = supabase
+        .storage
+        .from('activity-photos')
+        .getPublicUrl(filePath)
+
+      const photoUrl = publicUrlData.publicUrl
+
+      // 2. Simpan aktivitas
       const startedAt = new Date(
         tracker.points[0]?.timestamp || Date.now() - tracker.durationSec * 1000
       )
@@ -36,6 +70,7 @@ export default function RunTracker() {
           status: 'submitted',
           started_at: startedAt.toISOString(),
           ended_at: endedAt.toISOString(),
+          photo_url: photoUrl,
         })
         .select()
         .single()
@@ -135,9 +170,54 @@ export default function RunTracker() {
               </div>
             </div>
 
+            <div className="card card-pad">
+              <p className="text-caption mb-3">Foto Bukti Lari (wajib)</p>
+
+              {photoPreview ? (
+                <div className="flex-col gap-3">
+                  <img
+                    src={photoPreview}
+                    alt="Bukti lari"
+                    style={{
+                      width: '100%',
+                      maxHeight: 280,
+                      objectFit: 'cover',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--border)',
+                    }}
+                  />
+                  <label className="btn btn-secondary btn-block" style={{ cursor: 'pointer' }}>
+                    🔄 Ambil Ulang Foto
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={handlePhotoChange}
+                      style={{ display: 'none' }}
+                    />
+                  </label>
+                </div>
+              ) : (
+                <label className="btn btn-primary btn-block" style={{ cursor: 'pointer' }}>
+                  📷 Ambil Foto
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handlePhotoChange}
+                    style={{ display: 'none' }}
+                  />
+                </label>
+              )}
+            </div>
+
             {submitError && <div className="alert alert-danger">⚠️ <span>{submitError}</span></div>}
 
-            <button onClick={handleSubmit} disabled={submitting} className="btn btn-primary btn-lg btn-block">
+            <button
+              onClick={handleSubmit}
+              disabled={submitting || !photoFile}
+              className="btn btn-primary btn-lg btn-block"
+            >
               {submitting ? <span className="spinner" /> : '✅'} {submitting ? 'Menyimpan...' : 'Submit ke Guru'}
             </button>
 

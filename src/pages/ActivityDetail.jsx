@@ -65,6 +65,29 @@ export default function ActivityDetail() {
           </div>
         </div>
 
+        {a.photo_url && (
+          <div className="card card-pad mb-4">
+            <p className="text-caption mb-3">Foto Bukti Lari</p>
+            <img
+              src={a.photo_url}
+              alt="Bukti lari"
+              style={{
+                width: '100%',
+                maxHeight: 360,
+                objectFit: 'cover',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border)',
+              }}
+            />
+          </div>
+        )}
+
+        {!a.photo_url && (
+          <div className="alert alert-warning mb-4">
+            ⚠️ <span>Aktivitas ini tidak memiliki foto bukti.</span>
+          </div>
+        )}
+
         {a.avg_speed_kmh > 20 && (
           <div className="alert alert-warning mb-4">
             ⚠️ <span><strong>Perhatian:</strong> Kecepatan rata-rata {a.avg_speed_kmh.toFixed(1)} km/j terlihat tinggi untuk lari. Harap verifikasi.</span>
@@ -99,7 +122,7 @@ export default function ActivityDetail() {
 
         {a.status !== 'submitted' && a.teacher_note && (
           <div className="alert alert-success">
-            💬 <span>Catatan guru: {a.teacher_note}</span>
+            💬 <span>notes: {a.teacher_note}</span>
           </div>
         )}
       </div>

@@ -141,7 +141,7 @@ function ActivityRow({ activity: a }) {
       </div>
       {a.teacher_note && (
         <p className="text-small mt-3" style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
-          💬 Catatan guru: {a.teacher_note}
+          💬 Notes: {a.teacher_note}
         </p>
       )}
     </div>
