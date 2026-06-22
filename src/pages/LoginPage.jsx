@@ -42,11 +42,10 @@ export default function LoginPage() {
 
         <div>
           <h1 className="auth-brand-headline">
-            Platform analitik performa lari untuk institusi pendidikan.
+            Analytic Platform For Student for running tracker
           </h1>
           <p className="auth-brand-sub">
-            Pantau jarak, durasi, dan kecepatan setiap siswa secara akurat, lalu
-            tinjau dan validasi setiap aktivitas dari satu dashboard terpusat.
+            Accurately monitor each student's distance, duration, and pace, then review and validate every activity from one simple dashboard.
           </p>
 
           <div className="auth-brand-stats">
@@ -72,10 +71,10 @@ export default function LoginPage() {
       <div className="auth-form-panel">
         <div className="auth-form-card">
           <h2 className="text-display" style={{ marginBottom: 6 }}>
-            {mode === 'login' ? 'Masuk ke akun' : 'Buat akun baru'}
+            {mode === 'login' ? 'Login' : 'Buat akun baru'}
           </h2>
           <p className="text-secondary" style={{ marginBottom: 28 }}>
-            {mode === 'login' ? 'Lanjutkan ke dashboard RunTracker Anda.' : 'Lengkapi data untuk mulai menggunakan RunTracker.'}
+            {mode === 'login' ? '' : ''}
           </p>
 
           <form onSubmit={handleSubmit} className="flex-col gap-4">
