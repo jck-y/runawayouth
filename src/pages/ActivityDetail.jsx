@@ -57,7 +57,7 @@ export default function ActivityDetail() {
             <StatusBadge status={a.status} />
           </div>
 
-          <div className="kpi-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+          <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
             <Metric label="Jarak" value={`${(a.distance_meters / 1000).toFixed(2)} km`} />
             <Metric label="Durasi" value={formatDuration(a.duration_seconds)} />
             <Metric label="Kecepatan Rata-rata" value={`${a.avg_speed_kmh.toFixed(1)} km/j`} />

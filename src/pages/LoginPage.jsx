@@ -109,7 +109,7 @@ export default function LoginPage() {
               <label className="form-label">Email</label>
               <input
                 className="input"
-                type="email" placeholder="nama@sekolah.sch.id"
+                type="email" placeholder="@student.sch.id"
                 value={form.email}
                 onChange={e => setForm({ ...form, email: e.target.value })}
                 required
